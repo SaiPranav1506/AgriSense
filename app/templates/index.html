@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriSense — Smart Climate Agriculture</title>
+    <style>
+        :root { --green: #2A7A42; --light: #f0f7f2; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--light); color: #1a1a2e; }
+        header { background: var(--green); color: white; padding: 2rem; text-align: center; }
+        header h1 { font-size: 2rem; font-weight: 700; }
+        header p { margin-top: 0.5rem; opacity: 0.9; }
+        main { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card h2 { color: var(--green); margin-bottom: 0.5rem; }
+        .card p { color: #555; line-height: 1.6; }
+        .card code { display: inline-block; background: #eef6f0; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85rem; }
+        footer { text-align: center; padding: 2rem; color: #888; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>AgriSense</h1>
+        <p>AI-Based Smart Climate Adaptive Agriculture System</p>
+    </header>
+    <main>
+        <div class="cards">
+            <div class="card">
+                <h2>Crop Recommendation</h2>
+                <p>Predict the best crop to grow based on soil nutrients (N, P, K), temperature, humidity, pH, and rainfall. Powered by XGBoost with 98%+ accuracy across 22 crops.</p>
+                <p><code>POST /predict-crop</code></p>
+            </div>
+            <div class="card">
+                <h2>Yield Forecast</h2>
+                <p>Estimate crop yield in tonnes per hectare using location, crop type, weather data, and historical trends. Uses a deep neural network with categorical embeddings.</p>
+                <p><code>POST /predict-yield</code></p>
+            </div>
+            <div class="card">
+                <h2>Disease Detection</h2>
+                <p>Upload a plant leaf image to detect diseases using a MobileNetV2 deep learning model. Identifies 15 disease/healthy classes across Pepper, Potato, and Tomato crops.</p>
+                <p><code>POST /predict-disease</code></p>
+                <p><em>(multipart/form-data with 'image' field)</em></p>
+            </div>
+        </div>
+        <div style="margin-top:2rem;text-align:center;color:#666;">
+            <p>Use the API endpoints or connect the AgriSense dashboard</p>
+        </div>
+    </main>
+    <footer>
+        AgriSense — Built with TensorFlow, XGBoost, and Flask
+    </footer>
+</body>
+</html>
