@@ -9,8 +9,8 @@ from weather_client import fetch_climate
 app = Flask(__name__)
 
 crop_model    = pickle.load(open('models/xgb_crop.pkl',              'rb'))
-yield_model   = load_model('models/cnn_lstm_yield.h5')
-disease_model = load_model('models/mobilenet_disease.h5')
+yield_model   = load_model('models/cnn_lstm_yield.h5', compile=False)
+disease_model = load_model('models/mobilenet_disease.h5', compile=False)
 label_encoder = pickle.load(open('models/label_encoder.pkl',         'rb'))
 scaler        = pickle.load(open('models/scaler.pkl',                'rb'))
 y_scaler      = pickle.load(open('models/y_scaler.pkl',              'rb'))
