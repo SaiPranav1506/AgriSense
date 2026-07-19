@@ -1,5 +1,5 @@
 flask==3.0.0
-tensorflow==2.16.1
+tensorflow==2.18.0
 xgboost==2.0.3
 scikit-learn==1.4.0
 pandas==2.1.0
