@@ -1,25 +1,31 @@
 import sys, os, io, pickle
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(BASE, 'src'))
 import numpy as np
 from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 from tensorflow.keras.models import load_model
 from PIL import Image
 from weather_client import fetch_climate
 
 app = Flask(__name__)
+CORS(app)
 
-crop_model    = pickle.load(open('models/xgb_crop.pkl',              'rb'))
-yield_model   = load_model('models/cnn_lstm_yield.h5', compile=False)
-disease_model = load_model('models/mobilenet_disease.h5', compile=False)
-label_encoder = pickle.load(open('models/label_encoder.pkl',         'rb'))
-scaler        = pickle.load(open('models/scaler.pkl',                'rb'))
-y_scaler      = pickle.load(open('models/y_scaler.pkl',              'rb'))
-class_names   = pickle.load(open('models/disease_class_names.pkl',   'rb'))
+def _m(path):
+    return os.path.join(BASE, path)
+
+crop_model    = pickle.load(open(_m('models/xgb_crop.pkl'),              'rb'))
+yield_model   = load_model(_m('models/cnn_lstm_yield.h5'), compile=False)
+disease_model = load_model(_m('models/mobilenet_disease.h5'), compile=False)
+label_encoder = pickle.load(open(_m('models/label_encoder.pkl'),         'rb'))
+scaler        = pickle.load(open(_m('models/scaler.pkl'),                'rb'))
+y_scaler      = pickle.load(open(_m('models/y_scaler.pkl'),              'rb'))
+class_names   = pickle.load(open(_m('models/disease_class_names.pkl'),   'rb'))
 
 # Yield model additional artifacts
-area_encoder  = pickle.load(open('models/area_encoder.pkl',          'rb'))
-item_encoder  = pickle.load(open('models/item_encoder.pkl',          'rb'))
-num_scaler    = pickle.load(open('models/num_scaler.pkl',            'rb'))
+area_encoder  = pickle.load(open(_m('models/area_encoder.pkl'),          'rb'))
+item_encoder  = pickle.load(open(_m('models/item_encoder.pkl'),          'rb'))
+num_scaler    = pickle.load(open(_m('models/num_scaler.pkl'),            'rb'))
 
 
 @app.route('/')
@@ -126,6 +132,51 @@ def predict_disease():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+
+@app.route('/predict-yield-raw', methods=['POST'])
+def predict_yield_raw():
+    try:
+        d = request.get_json()
+        area_code = int(d['area_code'])
+        item_code = int(d['item_code'])
+        year = int(d.get('year', 2024))
+        rain = float(d.get('rainfall', 1000))
+        pest = float(d.get('pesticides', 100))
+        temp = float(d.get('avg_temp', 24))
+        field_area = float(d.get('area_ha', 1.0))
+
+        if 'lat' in d and 'lon' in d:
+            climate = fetch_climate(d['lat'], d['lon'])
+            if climate is not None and climate.shape[0] >= 30:
+                recent = climate[-7:]
+                temp = float(np.mean(recent[:, 0]))
+                prec = float(np.mean(recent[:, 2]))
+                rain = prec
+
+        log_pest = np.log1p(pest)
+        num_feat = num_scaler.transform([[year, rain, log_pest, temp]])
+        pred_s = yield_model.predict(
+            [np.array([area_code]), np.array([item_code]), num_feat],
+            verbose=0
+        )[0][0]
+        t_ha = float(y_scaler.inverse_transform([[pred_s]])[0][0])
+        return jsonify({
+            'yield_per_ha': round(t_ha, 3),
+            'total_yield': round(t_ha * float(field_area), 3),
+            'unit': 'tonnes/hectare'
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 400
+
+@app.route('/encoders', methods=['GET'])
+def get_encoders():
+    return jsonify({
+        'areas': list(area_encoder.classes_),
+        'items': list(item_encoder.classes_),
+        'area_map': {a: int(i) for i, a in enumerate(area_encoder.classes_)},
+        'item_map': {it: int(i) for i, it in enumerate(item_encoder.classes_)},
+    })
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

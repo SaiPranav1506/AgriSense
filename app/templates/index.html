@@ -5,51 +5,573 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AgriSense — Smart Climate Agriculture</title>
     <style>
-        :root { --green: #2A7A42; --light: #f0f7f2; }
+        :root {
+            --green: #2A7A42;
+            --green-light: #4CAF6A;
+            --green-dark: #1E5C30;
+            --bg: #f0f7f2;
+            --card: #ffffff;
+            --text: #1a1a2e;
+            --text-light: #666;
+            --border: #d4e8da;
+            --shadow: 0 2px 12px rgba(42,122,66,0.12);
+            --radius: 12px;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--light); color: #1a1a2e; }
-        header { background: var(--green); color: white; padding: 2rem; text-align: center; }
-        header h1 { font-size: 2rem; font-weight: 700; }
-        header p { margin-top: 0.5rem; opacity: 0.9; }
-        main { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
-        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
-        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .card h2 { color: var(--green); margin-bottom: 0.5rem; }
-        .card p { color: #555; line-height: 1.6; }
-        .card code { display: inline-block; background: #eef6f0; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85rem; }
-        footer { text-align: center; padding: 2rem; color: #888; font-size: 0.9rem; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh;
+        }
+        header {
+            background: linear-gradient(135deg, var(--green-dark), var(--green));
+            color: white; padding: 1.5rem 2rem; text-align: center;
+        }
+        header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; }
+        header p { margin-top: 0.3rem; opacity: 0.85; font-size: 1rem; }
+
+        /* Navigation Tabs */
+        .tabs {
+            display: flex; justify-content: center; gap: 0.5rem;
+            padding: 1rem 1rem 0; flex-wrap: wrap;
+        }
+        .tab-btn {
+            padding: 0.75rem 1.75rem; border: none; border-radius: 10px 10px 0 0;
+            background: #d4e8da; color: var(--green-dark); font-size: 0.95rem;
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .tab-btn:hover { background: #c0ddc8; }
+        .tab-btn.active {
+            background: var(--card); color: var(--green); box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+        }
+
+        main { max-width: 960px; margin: 0 auto 2rem; padding: 1.5rem; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .card {
+            background: var(--card); border-radius: var(--radius);
+            padding: 2rem; box-shadow: var(--shadow); margin-top: 0;
+        }
+        .card h2 {
+            color: var(--green); font-size: 1.4rem; margin-bottom: 1.25rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .card h2 .icon { font-size: 1.6rem; }
+
+        .form-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label {
+            font-size: 0.8rem; font-weight: 600; color: var(--text-light);
+            margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .form-group input, .form-group select {
+            padding: 0.6rem 0.75rem; border: 1.5px solid var(--border);
+            border-radius: 8px; font-size: 0.9rem; transition: border 0.2s;
+            background: var(--bg);
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(42,122,66,0.15);
+        }
+        .form-row { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; }
+
+        button.primary {
+            padding: 0.7rem 2rem; background: var(--green); color: white;
+            border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; margin-top: 1.25rem;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+        }
+        button.primary:hover { background: var(--green-dark); transform: translateY(-1px); }
+        button.primary:disabled { background: #a0c0aa; cursor: not-allowed; transform: none; }
+
+        .toggle-label {
+            display: flex; align-items: center; gap: 0.5rem;
+            font-size: 0.85rem; color: var(--text-light); cursor: pointer;
+            margin: 0.5rem 0;
+        }
+        .toggle-label input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--green); }
+
+        .latlon-fields {
+            display: none; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+            padding: 0.75rem; background: #e8f3ec; border-radius: 8px; margin-bottom: 0.5rem;
+        }
+        .latlon-fields.show { display: grid; }
+
+        /* Result */
+        .result {
+            margin-top: 1.5rem; padding: 1.25rem; border-radius: 10px;
+            background: #e8f5e9; border: 1px solid #a5d6a7; display: none;
+        }
+        .result.show { display: block; }
+        .result h3 { color: var(--green-dark); font-size: 1rem; margin-bottom: 0.75rem; }
+        .result .primary-value {
+            font-size: 1.5rem; font-weight: 700; color: var(--green);
+        }
+        .result .meta { color: var(--text-light); font-size: 0.85rem; margin-top: 0.5rem; }
+        .result table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+        .result td { padding: 0.4rem 0; border-bottom: 1px solid #c8e6c9; font-size: 0.9rem; }
+        .result td:last-child { text-align: right; font-weight: 600; color: var(--green-dark); }
+        .result .bar-container { margin-top: 0.5rem; }
+        .result .bar-bg { background: #c8e6c9; border-radius: 6px; height: 20px; overflow: hidden; margin: 0.25rem 0; }
+        .result .bar-fill {
+            height: 100%; border-radius: 6px; background: var(--green);
+            transition: width 0.5s ease; display: flex; align-items: center;
+            padding-left: 6px; font-size: 0.7rem; color: white; font-weight: 600;
+            min-width: fit-content;
+        }
+        .error-msg {
+            margin-top: 1rem; padding: 0.75rem; background: #ffebee; color: #c62828;
+            border-radius: 8px; border: 1px solid #ef9a9a; font-size: 0.9rem; display: none;
+        }
+        .error-msg.show { display: block; }
+
+        .loading {
+            display: none; align-items: center; gap: 0.75rem;
+            margin-top: 1rem; padding: 0.75rem; color: var(--text-light);
+        }
+        .loading.show { display: flex; }
+        .spinner { width: 20px; height: 20px; border: 3px solid #e0e0e0; border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .image-upload-area {
+            border: 2px dashed var(--border); border-radius: 10px;
+            padding: 2rem; text-align: center; cursor: pointer;
+            transition: all 0.2s; margin-bottom: 1rem;
+        }
+        .image-upload-area:hover { border-color: var(--green); background: #f0faf3; }
+        .image-upload-area.dragover { border-color: var(--green); background: #e8f5e9; }
+        .image-upload-area img { max-width: 280px; max-height: 280px; border-radius: 8px; margin-top: 0.75rem; }
+        .image-upload-area p { color: var(--text-light); font-size: 0.9rem; }
+        .image-upload-area .upload-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+        .top3-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 0.75rem;
+        }
+        .top3-item {
+            background: white; border-radius: 8px; padding: 0.75rem; border: 1px solid #c8e6c9;
+            text-align: center;
+        }
+        .top3-item .rank { font-size: 0.7rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; }
+        .top3-item .name { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0.25rem 0; }
+        .top3-item .conf { font-size: 0.8rem; color: var(--green); }
+
+        @media (max-width: 640px) {
+            header h1 { font-size: 1.5rem; }
+            .tab-btn { font-size: 0.8rem; padding: 0.5rem 1rem; }
+            .form-grid { grid-template-columns: 1fr 1fr; }
+            .card { padding: 1.25rem; }
+            .top3-grid { grid-template-columns: 1fr; }
+        }
+
+        .crop-badge {
+            display: inline-block; background: var(--green); color: white;
+            padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
+        }
+        .crop-icon-large { font-size: 3rem; text-align: center; margin-bottom: 0.5rem; }
+
+        .yield-metrics {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;
+        }
+        .yield-metric {
+            background: white; border-radius: 8px; padding: 1rem; text-align: center;
+            border: 1px solid #c8e6c9;
+        }
+        .yield-metric .value { font-size: 1.3rem; font-weight: 700; color: var(--green); }
+        .yield-metric .label { font-size: 0.75rem; color: var(--text-light); text-transform: uppercase; font-weight: 600; }
     </style>
 </head>
 <body>
-    <header>
-        <h1>AgriSense</h1>
-        <p>AI-Based Smart Climate Adaptive Agriculture System</p>
-    </header>
-    <main>
-        <div class="cards">
-            <div class="card">
-                <h2>Crop Recommendation</h2>
-                <p>Predict the best crop to grow based on soil nutrients (N, P, K), temperature, humidity, pH, and rainfall. Powered by XGBoost with 98%+ accuracy across 22 crops.</p>
-                <p><code>POST /predict-crop</code></p>
+
+<header>
+    <h1>AgriSense</h1>
+    <p>AI-Based Smart Climate Adaptive Agriculture System</p>
+</header>
+
+<div class="tabs">
+    <button class="tab-btn active" data-tab="crop">Crop Recommendation</button>
+    <button class="tab-btn" data-tab="yield">Yield Forecast</button>
+    <button class="tab-btn" data-tab="disease">Disease Detection</button>
+</div>
+
+<main>
+
+<!-- =============== CROP RECOMMENDATION =============== -->
+<div class="tab-content active" id="tab-crop">
+    <div class="card">
+        <h2><span class="icon">🌱</span> Crop Recommendation</h2>
+        <p style="color:var(--text-light);margin-bottom:1rem;font-size:0.9rem;">
+            Enter soil nutrient levels and environmental conditions to find the best crop.
+        </p>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Nitrogen (N)</label>
+                <input type="number" id="crop-n" value="80" step="1" min="0">
             </div>
-            <div class="card">
-                <h2>Yield Forecast</h2>
-                <p>Estimate crop yield in tonnes per hectare using location, crop type, weather data, and historical trends. Uses a deep neural network with categorical embeddings.</p>
-                <p><code>POST /predict-yield</code></p>
+            <div class="form-group">
+                <label>Phosphorus (P)</label>
+                <input type="number" id="crop-p" value="42" step="1" min="0">
             </div>
-            <div class="card">
-                <h2>Disease Detection</h2>
-                <p>Upload a plant leaf image to detect diseases using a MobileNetV2 deep learning model. Identifies 15 disease/healthy classes across Pepper, Potato, and Tomato crops.</p>
-                <p><code>POST /predict-disease</code></p>
-                <p><em>(multipart/form-data with 'image' field)</em></p>
+            <div class="form-group">
+                <label>Potassium (K)</label>
+                <input type="number" id="crop-k" value="43" step="1" min="0">
+            </div>
+            <div class="form-group">
+                <label>Temperature (°C)</label>
+                <input type="number" id="crop-temp" value="27" step="0.1">
+            </div>
+            <div class="form-group">
+                <label>Humidity (%)</label>
+                <input type="number" id="crop-hum" value="68" step="0.1" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>pH Level</label>
+                <input type="number" id="crop-ph" value="6.5" step="0.1" min="0" max="14">
+            </div>
+            <div class="form-group">
+                <label>Rainfall (mm)</label>
+                <input type="number" id="crop-rain" value="120" step="1" min="0">
             </div>
         </div>
-        <div style="margin-top:2rem;text-align:center;color:#666;">
-            <p>Use the API endpoints or connect the AgriSense dashboard</p>
+
+        <label class="toggle-label">
+            <input type="checkbox" id="crop-use-weather"> Use live weather (lat/lon)
+        </label>
+        <div class="latlon-fields" id="crop-latlon">
+            <div class="form-group">
+                <label>Latitude</label>
+                <input type="number" id="crop-lat" value="17.36" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Longitude</label>
+                <input type="number" id="crop-lon" value="78.48" step="0.01">
+            </div>
         </div>
-    </main>
-    <footer>
-        AgriSense — Built with TensorFlow, XGBoost, and Flask
-    </footer>
+
+        <button class="primary" id="crop-predict">🌾 Recommend Crop</button>
+
+        <div class="loading" id="crop-loading"><div class="spinner"></div> Analyzing soil data...</div>
+        <div class="error-msg" id="crop-error"></div>
+
+        <div class="result" id="crop-result">
+            <div class="crop-icon-large" id="crop-emoji">🌿</div>
+            <h3 style="text-align:center;">Recommended Crop</h3>
+            <p style="text-align:center;font-size:2rem;font-weight:700;color:var(--green);" id="crop-name">—</p>
+            <p style="text-align:center;color:var(--text-light);" id="crop-conf-label">Confidence: <span id="crop-conf">0</span>%</p>
+            <div class="bar-container">
+                <div class="bar-bg"><div class="bar-fill" id="crop-bar" style="width:0%">0%</div></div>
+            </div>
+            <h3 style="margin-top:1rem;font-size:0.9rem;color:var(--text-light);">Top 3 Alternatives</h3>
+            <div class="top3-grid" id="crop-top3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- =============== YIELD FORECAST =============== -->
+<div class="tab-content" id="tab-yield">
+    <div class="card">
+        <h2><span class="icon">📊</span> Yield Forecast</h2>
+        <p style="color:var(--text-light);margin-bottom:1rem;font-size:0.9rem;">
+            Predict crop yield in tonnes per hectare based on location, crop type, and conditions.
+        </p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Country / Area</label>
+                <input type="text" id="yield-area" value="India" placeholder="e.g. India">
+            </div>
+            <div class="form-group">
+                <label>Crop</label>
+                <input type="text" id="yield-crop" value="Rice" placeholder="e.g. Rice">
+            </div>
+            <div class="form-group">
+                <label>Year</label>
+                <input type="number" id="yield-year" value="2024" step="1">
+            </div>
+            <div class="form-group">
+                <label>Rainfall (mm/yr)</label>
+                <input type="number" id="yield-rain" value="1200" step="1">
+            </div>
+            <div class="form-group">
+                <label>Pesticides (tonnes)</label>
+                <input type="number" id="yield-pest" value="200" step="1">
+            </div>
+            <div class="form-group">
+                <label>Avg Temperature (°C)</label>
+                <input type="number" id="yield-temp" value="27" step="0.1">
+            </div>
+            <div class="form-group">
+                <label>Field Area (ha)</label>
+                <input type="number" id="yield-area-ha" value="2.5" step="0.1">
+            </div>
+        </div>
+
+        <label class="toggle-label">
+            <input type="checkbox" id="yield-use-weather"> Use live weather data
+        </label>
+        <div class="latlon-fields" id="yield-latlon">
+            <div class="form-group">
+                <label>Latitude</label>
+                <input type="number" id="yield-lat" value="17.36" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Longitude</label>
+                <input type="number" id="yield-lon" value="78.48" step="0.01">
+            </div>
+        </div>
+
+        <button class="primary" id="yield-predict">🌾 Forecast Yield</button>
+
+        <div class="loading" id="yield-loading"><div class="spinner"></div> Computing yield forecast...</div>
+        <div class="error-msg" id="yield-error"></div>
+
+        <div class="result" id="yield-result">
+            <div class="yield-metrics">
+                <div class="yield-metric">
+                    <div class="label">Yield per Hectare</div>
+                    <div class="value" id="yield-per-ha">—</div>
+                    <div style="font-size:0.75rem;color:var(--text-light);">tonnes / ha</div>
+                </div>
+                <div class="yield-metric">
+                    <div class="label">Total Yield</div>
+                    <div class="value" id="yield-total">—</div>
+                    <div style="font-size:0.75rem;color:var(--text-light);">tonnes</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =============== DISEASE DETECTION =============== -->
+<div class="tab-content" id="tab-disease">
+    <div class="card">
+        <h2><span class="icon">🔬</span> Disease Detection</h2>
+        <p style="color:var(--text-light);margin-bottom:1rem;font-size:0.9rem;">
+            Upload a plant leaf image to detect diseases. Supports Pepper, Potato, and Tomato crops.
+        </p>
+
+        <div class="image-upload-area" id="upload-area">
+            <div class="upload-icon">🍃</div>
+            <p><strong>Click to upload</strong> or drag & drop a leaf image</p>
+            <p style="font-size:0.8rem;margin-top:0.25rem;">JPG, PNG — 224×224 recommended</p>
+            <img id="image-preview" style="display:none;">
+            <input type="file" id="image-input" accept="image/*" style="display:none;">
+        </div>
+
+        <button class="primary" id="disease-predict">🔍 Diagnose Disease</button>
+
+        <div class="loading" id="disease-loading"><div class="spinner"></div> Analyzing leaf image...</div>
+        <div class="error-msg" id="disease-error"></div>
+
+        <div class="result" id="disease-result">
+            <h3 style="text-align:center;">Diagnosis Result</h3>
+            <p style="text-align:center;font-size:1.3rem;font-weight:700;color:var(--green);" id="disease-name">—</p>
+            <p style="text-align:center;color:var(--text-light);" id="disease-conf-label">Confidence: <span id="disease-conf">0</span>%</p>
+            <div class="bar-container">
+                <div class="bar-bg"><div class="bar-fill" id="disease-bar" style="width:0%">0%</div></div>
+            </div>
+            <h3 style="margin-top:1rem;font-size:0.9rem;color:var(--text-light);">Top 3 Possible Conditions</h3>
+            <div class="top3-grid" id="disease-top3"></div>
+        </div>
+    </div>
+</div>
+
+</main>
+
+<footer>
+    AgriSense &mdash; Built with TensorFlow, XGBoost, and Flask
+</footer>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+});
+
+// Toggle lat/lon fields
+document.querySelectorAll('.toggle-label input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+        const target = cb.closest('.card').querySelector('.latlon-fields');
+        target.classList.toggle('show', cb.checked);
+    });
+});
+
+// Image upload
+const uploadArea = document.getElementById('upload-area');
+const imageInput = document.getElementById('image-input');
+const imagePreview = document.getElementById('image-preview');
+
+uploadArea.addEventListener('click', () => imageInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) handleImage(e.dataTransfer.files[0]);
+});
+imageInput.addEventListener('change', () => {
+    if (imageInput.files[0]) handleImage(imageInput.files[0]);
+});
+
+function handleImage(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        imagePreview.src = e.target.result;
+        imagePreview.style.display = 'block';
+        uploadArea.querySelector('p:first-of-type').textContent = file.name;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Helper: show/hide elements
+function show(el) { el.classList.add('show'); }
+function hide(el) { el.classList.remove('show'); }
+function clear(el) { el.innerHTML = ''; }
+
+// Build bars for top3
+function renderTop3(container, items, labelKey, confKey) {
+    container.innerHTML = items.map((item, i) => `
+        <div class="top3-item">
+            <div class="rank">#${i+1}</div>
+            <div class="name">${item[labelKey]}</div>
+            <div class="conf">${item[confKey].toFixed(2)}%</div>
+            <div class="bar-bg" style="height:6px;margin-top:4px;">
+                <div class="bar-fill" style="width:${item[confKey]}%;font-size:0;min-width:0;"> </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// =================== CROP PREDICTION ===================
+document.getElementById('crop-predict').addEventListener('click', async () => {
+    const btn = document.getElementById('crop-predict');
+    const loading = document.getElementById('crop-loading');
+    const errorEl = document.getElementById('crop-error');
+    const resultEl = document.getElementById('crop-result');
+
+    btn.disabled = true; show(loading); hide(errorEl); hide(resultEl);
+
+    try {
+        const body = {
+            N: parseFloat(document.getElementById('crop-n').value),
+            P: parseFloat(document.getElementById('crop-p').value),
+            K: parseFloat(document.getElementById('crop-k').value),
+            temperature: parseFloat(document.getElementById('crop-temp').value),
+            humidity: parseFloat(document.getElementById('crop-hum').value),
+            ph: parseFloat(document.getElementById('crop-ph').value),
+            rainfall: parseFloat(document.getElementById('crop-rain').value)
+        };
+        if (document.getElementById('crop-use-weather').checked) {
+            body.lat = parseFloat(document.getElementById('crop-lat').value);
+            body.lon = parseFloat(document.getElementById('crop-lon').value);
+        }
+
+        const resp = await fetch('/predict-crop', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        document.getElementById('crop-name').textContent = data.recommended_crop;
+        document.getElementById('crop-conf').textContent = data.confidence.toFixed(2);
+        document.getElementById('crop-bar').style.width = data.confidence + '%';
+        document.getElementById('crop-bar').textContent = data.confidence.toFixed(1) + '%';
+        renderTop3(document.getElementById('crop-top3'), data.top3, 'crop', 'confidence');
+        show(resultEl);
+    } catch (e) {
+        errorEl.textContent = 'Error: ' + e.message;
+        show(errorEl);
+    } finally {
+        btn.disabled = false; hide(loading);
+    }
+});
+
+// =================== YIELD PREDICTION ===================
+document.getElementById('yield-predict').addEventListener('click', async () => {
+    const btn = document.getElementById('yield-predict');
+    const loading = document.getElementById('yield-loading');
+    const errorEl = document.getElementById('yield-error');
+    const resultEl = document.getElementById('yield-result');
+
+    btn.disabled = true; show(loading); hide(errorEl); hide(resultEl);
+
+    try {
+        const body = {
+            area: document.getElementById('yield-area').value,
+            crop: document.getElementById('yield-crop').value,
+            year: parseInt(document.getElementById('yield-year').value),
+            rainfall: parseFloat(document.getElementById('yield-rain').value),
+            pesticides: parseFloat(document.getElementById('yield-pest').value),
+            avg_temp: parseFloat(document.getElementById('yield-temp').value),
+            area_ha: parseFloat(document.getElementById('yield-area-ha').value)
+        };
+        if (document.getElementById('yield-use-weather').checked) {
+            body.lat = parseFloat(document.getElementById('yield-lat').value);
+            body.lon = parseFloat(document.getElementById('yield-lon').value);
+        }
+
+        const resp = await fetch('/predict-yield', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        document.getElementById('yield-per-ha').textContent = data.yield_per_ha.toFixed(3);
+        document.getElementById('yield-total').textContent = data.total_yield.toFixed(3);
+        show(resultEl);
+    } catch (e) {
+        errorEl.textContent = 'Error: ' + e.message;
+        show(errorEl);
+    } finally {
+        btn.disabled = false; hide(loading);
+    }
+});
+
+// =================== DISEASE DETECTION ===================
+document.getElementById('disease-predict').addEventListener('click', async () => {
+    const btn = document.getElementById('disease-predict');
+    const loading = document.getElementById('disease-loading');
+    const errorEl = document.getElementById('disease-error');
+    const resultEl = document.getElementById('disease-result');
+
+    if (!imageInput.files[0]) {
+        errorEl.textContent = 'Please upload a leaf image first.';
+        show(errorEl); return;
+    }
+
+    btn.disabled = true; show(loading); hide(errorEl); hide(resultEl);
+
+    try {
+        const formData = new FormData();
+        formData.append('image', imageInput.files[0]);
+
+        const resp = await fetch('/predict-disease', {
+            method: 'POST', body: formData
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        document.getElementById('disease-name').textContent = data.disease_class;
+        document.getElementById('disease-conf').textContent = data.confidence.toFixed(2);
+        document.getElementById('disease-bar').style.width = data.confidence + '%';
+        document.getElementById('disease-bar').textContent = data.confidence.toFixed(1) + '%';
+        renderTop3(document.getElementById('disease-top3'), data.top3_classes, 'class', 'confidence');
+        show(resultEl);
+    } catch (e) {
+        errorEl.textContent = 'Error: ' + e.message;
+        show(errorEl);
+    } finally {
+        btn.disabled = false; hide(loading);
+    }
+});
+</script>
+
 </body>
 </html>

@@ -6,7 +6,7 @@ from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 import tensorflow as tf
 
 
-def load_crop_data(path="data/raw/Crop_recommendation.csv"):
+def load_crop_data(path="data/raw/Crop_recommendation_Extended.csv"):
     df = pd.read_csv(path)
     assert df.isnull().sum().sum() == 0, "Null values found in crop data"
     print(f"Crop data shape: {df.shape}")
