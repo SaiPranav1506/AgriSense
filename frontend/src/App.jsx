@@ -3,10 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ParticleField from './components/ParticleField';
+import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/Home';
 import CropPage from './pages/CropPage';
 import YieldPage from './pages/YieldPage';
 import DiseasePage from './pages/DiseasePage';
+import NotFound from './pages/NotFound';
 
 const pageTransition = {
   initial: { opacity: 0, y: 18 },
@@ -36,10 +38,11 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<motion.div {...pageTransition}><Home /></motion.div>} />
-        <Route path="/crop" element={<motion.div {...pageTransition}><CropPage /></motion.div>} />
-        <Route path="/yield" element={<motion.div {...pageTransition}><YieldPage /></motion.div>} />
-        <Route path="/disease" element={<motion.div {...pageTransition}><DiseasePage /></motion.div>} />
+        <Route path="/" element={<ErrorBoundary><motion.div {...pageTransition}><Home /></motion.div></ErrorBoundary>} />
+        <Route path="/crop" element={<ErrorBoundary><motion.div {...pageTransition}><CropPage /></motion.div></ErrorBoundary>} />
+        <Route path="/yield" element={<ErrorBoundary><motion.div {...pageTransition}><YieldPage /></motion.div></ErrorBoundary>} />
+        <Route path="/disease" element={<ErrorBoundary><motion.div {...pageTransition}><DiseasePage /></motion.div></ErrorBoundary>} />
+        <Route path="*" element={<motion.div {...pageTransition}><NotFound /></motion.div>} />
       </Routes>
     </AnimatePresence>
   );

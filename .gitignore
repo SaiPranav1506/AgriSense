@@ -2,10 +2,15 @@ __pycache__/
 *.pyc
 *.h5
 *.pkl
+*.log
 data/raw/
 data/processed/
 .env
 venv/
 .DS_Store
+node_modules/
 outputs/
+notebooks/
 *.egg-info/
+dist/
+.vite/

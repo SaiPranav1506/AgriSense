@@ -1,4 +1,4 @@
-import sys, os, io, pickle
+import sys, os, io, pickle, logging
 BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(BASE, 'src'))
 import numpy as np
@@ -8,12 +8,27 @@ from tensorflow.keras.models import load_model
 from PIL import Image
 from weather_client import fetch_climate
 
-app = Flask(__name__)
-CORS(app)
+# ── Logging ──
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+log = logging.getLogger(__name__)
 
+app = Flask(__name__)
+
+# ── CORS ──
+allowed_origins = os.environ.get(
+    'CORS_ORIGINS',
+    'http://localhost:9999,http://localhost:5173,http://localhost:3000'
+).split(',')
+CORS(app, origins=allowed_origins)
+
+# ── Upload limits ──
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+
+# ── Model paths ──
 def _m(path):
     return os.path.join(BASE, path)
 
+log.info("Loading models...")
 crop_model    = pickle.load(open(_m('models/xgb_crop.pkl'),              'rb'))
 yield_model   = load_model(_m('models/cnn_lstm_yield.h5'), compile=False)
 disease_model = load_model(_m('models/mobilenet_disease.h5'), compile=False)
@@ -21,29 +36,53 @@ label_encoder = pickle.load(open(_m('models/label_encoder.pkl'),         'rb'))
 scaler        = pickle.load(open(_m('models/scaler.pkl'),                'rb'))
 y_scaler      = pickle.load(open(_m('models/y_scaler.pkl'),              'rb'))
 class_names   = pickle.load(open(_m('models/disease_class_names.pkl'),   'rb'))
-
-# Yield model additional artifacts
 area_encoder  = pickle.load(open(_m('models/area_encoder.pkl'),          'rb'))
 item_encoder  = pickle.load(open(_m('models/item_encoder.pkl'),          'rb'))
 num_scaler    = pickle.load(open(_m('models/num_scaler.pkl'),            'rb'))
+log.info("All models loaded.")
 
 
+# ── Helpers ──
+def _err(msg, code=400):
+    return jsonify({'error': str(msg)}), code
+
+
+# ── Routes ──
 @app.route('/')
 def home():
     return render_template('index.html')
 
 
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'ok',
+        'models': ['crop', 'yield', 'disease'],
+        'models_loaded': all([
+            crop_model, yield_model, disease_model,
+            label_encoder, scaler, y_scaler, class_names,
+            area_encoder, item_encoder, num_scaler,
+        ])
+    })
+
+
 @app.route('/predict-crop', methods=['POST'])
 def predict_crop():
     try:
-        d    = request.get_json()
-        N    = float(d['N'])
-        P    = float(d['P'])
-        K    = float(d['K'])
-        temp = float(d['temperature'])
-        hum  = float(d['humidity'])
-        ph   = float(d['ph'])
-        rain = float(d['rainfall'])
+        d = request.get_json()
+        if not d:
+            return _err('Request body must be JSON')
+        N    = float(d.get('N', 0))
+        P    = float(d.get('P', 0))
+        K    = float(d.get('K', 0))
+        temp = float(d.get('temperature', 25))
+        hum  = float(d.get('humidity', 50))
+        ph   = float(d.get('ph', 7.0))
+        rain = float(d.get('rainfall', 100))
+        if not (0 <= N <= 200 and 0 <= P <= 200 and 0 <= K <= 200):
+            return _err('N, P, K must be in range 0–200')
+        if not (3.5 <= ph <= 9.5):
+            return _err('pH must be in range 3.5–9.5')
         if 'lat' in d and 'lon' in d:
             climate = fetch_climate(d['lat'], d['lon'])
             if climate is not None:
@@ -60,21 +99,23 @@ def predict_crop():
                      for i in top3_idx]
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        log.exception('predict-crop failed')
+        return _err(str(e))
 
 
 @app.route('/predict-yield', methods=['POST'])
 def predict_yield():
     try:
-        d     = request.get_json()
-        area  = d['area']
-        item  = d['crop']
+        d = request.get_json()
+        if not d:
+            return _err('Request body must be JSON')
+        area = d.get('area', 'India')
+        item = d.get('crop', 'Rice, paddy')
         year  = int(d.get('year', 2024))
         rain  = float(d.get('rainfall', 1000))
         pest  = float(d.get('pesticides', 100))
         temp  = float(d.get('avg_temp', 24))
 
-        # Use live weather if lat/lon provided
         if 'lat' in d and 'lon' in d:
             climate = fetch_climate(d['lat'], d['lon'])
             if climate is not None and climate.shape[0] >= 30:
@@ -83,7 +124,6 @@ def predict_yield():
                 hum  = float(np.mean(recent[:, 1]))
                 prec = float(np.mean(recent[:, 2]))
 
-        # Encode categoricals (unknown -> most common, code=0)
         if area in area_encoder.classes_:
             area_code = area_encoder.transform([area])[0]
         else:
@@ -108,18 +148,20 @@ def predict_yield():
             'unit':         'tonnes/hectare'
         })
     except Exception as e:
-        import traceback
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 400
+        log.exception('predict-yield failed')
+        return _err(str(e))
 
 
 @app.route('/predict-disease', methods=['POST'])
 def predict_disease():
     try:
-        file  = request.files['image']
-        img   = Image.open(io.BytesIO(file.read())).convert('RGB')
-        img   = img.resize((224, 224))
-        arr   = np.array(img, dtype=np.float32) / 255.0
-        arr   = np.expand_dims(arr, axis=0)
+        if 'image' not in request.files:
+            return _err('No image file provided')
+        file = request.files['image']
+        img  = Image.open(io.BytesIO(file.read())).convert('RGB')
+        img  = img.resize((224, 224))
+        arr  = np.array(img, dtype=np.float32) / 255.0
+        arr  = np.expand_dims(arr, axis=0)
         proba = disease_model.predict(arr, verbose=0)[0]
         top3_idx = np.argsort(proba)[::-1][:3]
         return jsonify({
@@ -130,15 +172,18 @@ def predict_disease():
                               for i in top3_idx]
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        log.exception('predict-disease failed')
+        return _err(str(e))
 
 
 @app.route('/predict-yield-raw', methods=['POST'])
 def predict_yield_raw():
     try:
         d = request.get_json()
-        area_code = int(d['area_code'])
-        item_code = int(d['item_code'])
+        if not d:
+            return _err('Request body must be JSON')
+        area_code = int(d.get('area_code', 0))
+        item_code = int(d.get('item_code', 0))
         year = int(d.get('year', 2024))
         rain = float(d.get('rainfall', 1000))
         pest = float(d.get('pesticides', 100))
@@ -166,8 +211,9 @@ def predict_yield_raw():
             'unit': 'tonnes/hectare'
         })
     except Exception as e:
-        import traceback
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 400
+        log.exception('predict-yield-raw failed')
+        return _err(str(e))
+
 
 @app.route('/encoders', methods=['GET'])
 def get_encoders():
@@ -178,5 +224,8 @@ def get_encoders():
         'item_map': {it: int(i) for i, it in enumerate(item_encoder.classes_)},
     })
 
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', '0') == '1'
+    app.run(host='0.0.0.0', port=port, debug=debug)
