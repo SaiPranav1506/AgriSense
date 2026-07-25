@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ParticleField from './components/ParticleField';
 import ErrorBoundary from './components/ErrorBoundary';
+import ChatWidget from './components/ChatWidget';
 import Home from './pages/Home';
 import CropPage from './pages/CropPage';
 import YieldPage from './pages/YieldPage';
@@ -69,6 +70,7 @@ export default function App() {
           error: { iconTheme: { primary: '#e2b96f', secondary: '#030406' } },
         }}
       />
+      <ChatWidget />
       <AnimatedRoutes />
     </>
   );

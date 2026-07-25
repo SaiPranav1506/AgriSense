@@ -7,6 +7,7 @@ from flask_cors import CORS
 from tensorflow.keras.models import load_model
 from PIL import Image
 from weather_client import fetch_climate
+from agent_bp import agent_bp
 
 # ── Logging ──
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -20,6 +21,7 @@ allowed_origins = os.environ.get(
     'http://localhost:9999,http://localhost:5173,http://localhost:3000'
 ).split(',')
 CORS(app, origins=allowed_origins)
+app.register_blueprint(agent_bp)
 
 # ── Upload limits ──
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
@@ -228,4 +230,4 @@ def get_encoders():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_DEBUG', '0') == '1'
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(host='0.0.0.0', port=port, debug=debug, threaded=True)
