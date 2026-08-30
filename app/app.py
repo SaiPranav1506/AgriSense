@@ -2,12 +2,15 @@ import sys, os, io, pickle, logging
 BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(BASE, 'src'))
 import numpy as np
+import tensorflow as tf
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from tensorflow.keras.models import load_model
 from PIL import Image
 from weather_client import fetch_climate
 from agent_bp import agent_bp
+from crop_features import (build_feature_vector, build_feature_vector_honest,
+                           LEGIT_FEATURES, get_crop_features)
 
 # ── Logging ──
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -31,16 +34,16 @@ def _m(path):
     return os.path.join(BASE, path)
 
 log.info("Loading models...")
-crop_model    = pickle.load(open(_m('models/xgb_crop.pkl'),              'rb'))
-yield_model   = load_model(_m('models/cnn_lstm_yield.h5'), compile=False)
-disease_model = load_model(_m('models/mobilenet_disease.h5'), compile=False)
+crop_model    = pickle.load(open(_m('models/xgb_crop_v11.pkl'),          'rb'))
+yield_model   = load_model(_m('models/cnn_lstm_yield_v2.h5'), compile=False)
+disease_model = load_model(_m('models/mobilenet_disease_v5.h5'), compile=False)
 label_encoder = pickle.load(open(_m('models/label_encoder.pkl'),         'rb'))
-scaler        = pickle.load(open(_m('models/scaler.pkl'),                'rb'))
-y_scaler      = pickle.load(open(_m('models/y_scaler.pkl'),              'rb'))
+crop_scaler   = pickle.load(open(_m('models/crop_scaler_v11.pkl'),       'rb'))
+crop_featnames = pickle.load(open(_m('models/crop_featnames_v11.pkl'),   'rb'))
 class_names   = pickle.load(open(_m('models/disease_class_names.pkl'),   'rb'))
 area_encoder  = pickle.load(open(_m('models/area_encoder.pkl'),          'rb'))
 item_encoder  = pickle.load(open(_m('models/item_encoder.pkl'),          'rb'))
-num_scaler    = pickle.load(open(_m('models/num_scaler.pkl'),            'rb'))
+num_scaler    = pickle.load(open(_m('models/num_scaler_v2.pkl'),         'rb'))
 log.info("All models loaded.")
 
 
@@ -62,7 +65,7 @@ def health():
         'models': ['crop', 'yield', 'disease'],
         'models_loaded': all([
             crop_model, yield_model, disease_model,
-            label_encoder, scaler, y_scaler, class_names,
+            label_encoder, crop_scaler, class_names,
             area_encoder, item_encoder, num_scaler,
         ])
     })
@@ -90,7 +93,13 @@ def predict_crop():
             if climate is not None:
                 temp = float(np.mean(climate[:, 0]))
                 hum  = float(np.mean(climate[:, 1]))
-        X_scaled = scaler.transform([[N, P, K, temp, hum, ph, rain]])
+
+        # Leak-free: build all 22 label-free features from the 7 raw inputs,
+        # then select the subset the v11 model was trained on.
+        full = build_feature_vector_honest(N, P, K, temp, hum, ph, rain)[0]
+        feat_map = dict(zip(LEGIT_FEATURES, full))
+        X_raw = np.array([[feat_map[f] for f in crop_featnames]], dtype=np.float32)
+        X_scaled = crop_scaler.transform(X_raw)
         proba    = crop_model.predict_proba(X_scaled)[0]
         top3_idx = np.argsort(proba)[::-1][:3]
         return jsonify({
@@ -141,7 +150,7 @@ def predict_yield():
             [np.array([area_code]), np.array([item_code]), num_feat],
             verbose=0
         )[0][0]
-        t_ha = float(y_scaler.inverse_transform([[pred_s]])[0][0])
+        t_ha = float(np.expm1(pred_s))
 
         field_area = float(d.get('area_ha', 1.0))
         return jsonify({
@@ -161,10 +170,16 @@ def predict_disease():
             return _err('No image file provided')
         file = request.files['image']
         img  = Image.open(io.BytesIO(file.read())).convert('RGB')
-        img  = img.resize((224, 224))
+        img  = img.resize((128, 128))
         arr  = np.array(img, dtype=np.float32) / 255.0
         arr  = np.expand_dims(arr, axis=0)
-        proba = disease_model.predict(arr, verbose=0)[0]
+        t = tf.convert_to_tensor(arr)
+        p0 = disease_model.predict(t, verbose=0)
+        p1 = disease_model.predict(tf.image.flip_left_right(t), verbose=0)
+        p2 = disease_model.predict(tf.image.rot90(t, k=1), verbose=0)
+        p3 = disease_model.predict(tf.image.rot90(t, k=3), verbose=0)
+        p4 = disease_model.predict(tf.image.random_brightness(t, 0.15), verbose=0)
+        proba = ((p0 + p1 + p2 + p3 + p4) / 5.0)[0]
         top3_idx = np.argsort(proba)[::-1][:3]
         return jsonify({
             'disease_class': class_names[top3_idx[0]],
@@ -206,7 +221,7 @@ def predict_yield_raw():
             [np.array([area_code]), np.array([item_code]), num_feat],
             verbose=0
         )[0][0]
-        t_ha = float(y_scaler.inverse_transform([[pred_s]])[0][0])
+        t_ha = float(np.expm1(pred_s))
         return jsonify({
             'yield_per_ha': round(t_ha, 3),
             'total_yield': round(t_ha * float(field_area), 3),
