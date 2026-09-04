@@ -36,7 +36,7 @@ def _m(path):
 log.info("Loading models...")
 crop_model    = pickle.load(open(_m('models/xgb_crop_v11.pkl'),          'rb'))
 yield_model   = load_model(_m('models/cnn_lstm_yield_v2.h5'), compile=False)
-disease_model = load_model(_m('models/mobilenet_disease_v5.h5'), compile=False)
+disease_model = load_model(_m('models/efficientnet_disease_v6.h5'), compile=False)
 label_encoder = pickle.load(open(_m('models/label_encoder.pkl'),         'rb'))
 crop_scaler   = pickle.load(open(_m('models/crop_scaler_v11.pkl'),       'rb'))
 crop_featnames = pickle.load(open(_m('models/crop_featnames_v11.pkl'),   'rb'))
@@ -170,15 +170,17 @@ def predict_disease():
             return _err('No image file provided')
         file = request.files['image']
         img  = Image.open(io.BytesIO(file.read())).convert('RGB')
-        img  = img.resize((128, 128))
-        arr  = np.array(img, dtype=np.float32) / 255.0
+        img  = img.resize((224, 224))
+        # v6 (EfficientNetV2 include_preprocessing=True) expects [0,255] — do NOT /255
+        arr  = np.array(img, dtype=np.float32)
         arr  = np.expand_dims(arr, axis=0)
         t = tf.convert_to_tensor(arr)
         p0 = disease_model.predict(t, verbose=0)
         p1 = disease_model.predict(tf.image.flip_left_right(t), verbose=0)
         p2 = disease_model.predict(tf.image.rot90(t, k=1), verbose=0)
         p3 = disease_model.predict(tf.image.rot90(t, k=3), verbose=0)
-        p4 = disease_model.predict(tf.image.random_brightness(t, 0.15), verbose=0)
+        bright = tf.clip_by_value(t + tf.random.uniform([], -25.0, 25.0), 0.0, 255.0)
+        p4 = disease_model.predict(bright, verbose=0)
         proba = ((p0 + p1 + p2 + p3 + p4) / 5.0)[0]
         top3_idx = np.argsort(proba)[::-1][:3]
         return jsonify({
