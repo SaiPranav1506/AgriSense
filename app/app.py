@@ -40,6 +40,13 @@ disease_model = load_model(_m('models/efficientnet_disease_v6.h5'), compile=Fals
 label_encoder = pickle.load(open(_m('models/label_encoder.pkl'),         'rb'))
 crop_scaler   = pickle.load(open(_m('models/crop_scaler_v11.pkl'),       'rb'))
 crop_featnames = pickle.load(open(_m('models/crop_featnames_v11.pkl'),   'rb'))
+# Family-level crop model (optional coarser mode, higher top-1)
+try:
+    crop_family_model  = pickle.load(open(_m('models/xgb_crop_family.pkl'),  'rb'))
+    crop_family_scaler = pickle.load(open(_m('models/crop_family_scaler.pkl'), 'rb'))
+    crop_family_meta   = pickle.load(open(_m('models/crop_family_meta.pkl'), 'rb'))
+except Exception:
+    crop_family_model = crop_family_scaler = crop_family_meta = None
 class_names   = pickle.load(open(_m('models/disease_class_names.pkl'),   'rb'))
 area_encoder  = pickle.load(open(_m('models/area_encoder.pkl'),          'rb'))
 item_encoder  = pickle.load(open(_m('models/item_encoder.pkl'),          'rb'))
@@ -111,6 +118,49 @@ def predict_crop():
         })
     except Exception as e:
         log.exception('predict-crop failed')
+        return _err(str(e))
+
+
+@app.route('/predict-crop-family', methods=['POST'])
+def predict_crop_family():
+    """Coarser family-level recommendation (11 agro-climatic families).
+    Higher top-1 than individual crops (80% vs 77%) — useful as a simple mode."""
+    if crop_family_model is None:
+        return _err('Crop-family model not available', 503)
+    try:
+        d = request.get_json()
+        if not d:
+            return _err('Request body must be JSON')
+        N    = float(d.get('N', 0)); P = float(d.get('P', 0)); K = float(d.get('K', 0))
+        temp = float(d.get('temperature', 25)); hum = float(d.get('humidity', 50))
+        ph   = float(d.get('ph', 7.0)); rain = float(d.get('rainfall', 100))
+        if not (0 <= N <= 200 and 0 <= P <= 200 and 0 <= K <= 200):
+            return _err('N, P, K must be in range 0–200')
+        if not (3.5 <= ph <= 9.5):
+            return _err('pH must be in range 3.5–9.5')
+        if 'lat' in d and 'lon' in d:
+            climate = fetch_climate(d['lat'], d['lon'])
+            if climate is not None:
+                temp = float(np.mean(climate[:, 0]))
+                hum  = float(np.mean(climate[:, 1]))
+
+        full = build_feature_vector_honest(N, P, K, temp, hum, ph, rain)[0]
+        feat_map = dict(zip(LEGIT_FEATURES, full))
+        feats = crop_family_meta['features']
+        X_raw = np.array([[feat_map[f] for f in feats]], dtype=np.float32)
+        X_scaled = crop_family_scaler.transform(X_raw)
+        proba = crop_family_model.predict_proba(X_scaled)[0]
+        fam_names = crop_family_meta['family_names']
+        top3_idx = np.argsort(proba)[::-1][:3]
+        return jsonify({
+            'recommended_family': fam_names[top3_idx[0]],
+            'confidence': round(float(proba[top3_idx[0]] * 100), 2),
+            'top3': [{'family': fam_names[i],
+                      'confidence': round(float(proba[i] * 100), 2)}
+                     for i in top3_idx]
+        })
+    except Exception as e:
+        log.exception('predict-crop-family failed')
         return _err(str(e))
 
 
