@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "AgriSense",
+    "slug": "agrisense-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#0e5a2e",
+    "splash": {
+      "backgroundColor": "#0e5a2e"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.agrisense.mobile"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "apiUrl": "http://localhost:5000"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow AgriSense to access your photos to detect leaf disease.",
+          "cameraPermission": "Allow AgriSense to use your camera to photograph a leaf."
+        }
+      ],
+      "expo-asset"
+    ]
+  }
+}

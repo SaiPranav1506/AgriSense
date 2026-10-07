@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import os
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
 import tensorflow as tf
 
 
@@ -22,10 +22,28 @@ def load_crop_data(path="data/raw/Crop_recommendation_Extended.csv"):
     X = scaler.fit_transform(df[feature_cols].values).astype(np.float32)
     pickle.dump(scaler, open('models/scaler.pkl', 'wb'))
 
-    y = df['label'].values.astype(np.int32)
+    y = le.transform(df['label'].values).astype(np.int32)
     classes = len(le.classes_)
     print(f"Crop data loaded. X={X.shape}, y={y.shape}, classes={classes}")
     return X, y, feature_cols
+
+
+def load_crop_data_v10(path="data/raw/Crop_recommendation_Extended.csv"):
+    from crop_features import add_features
+    df = pd.read_csv(path)
+    assert df.isnull().sum().sum() == 0
+    print(f"Crop v10 data shape: {df.shape}")
+
+    le = pickle.load(open('models/label_encoder.pkl', 'rb'))
+    y = le.transform(df['label'].values).astype(np.int32)
+
+    X, feat_names = add_features(df)
+    scaler = StandardScaler()
+    Xs = scaler.fit_transform(X)
+    pickle.dump(scaler, open('models/crop_scaler_v10.pkl', 'wb'))
+    pickle.dump(feat_names, open('models/crop_featnames_v10.pkl', 'wb'))
+    print(f"Crop v10 loaded. X={Xs.shape}, y={y.shape}, features={len(feat_names)}")
+    return Xs, y, feat_names
 
 
 def build_yield_sequences(path="data/raw/yield_df.csv", window=30, save=True):

@@ -15,6 +15,13 @@ Ask me about:
 
 Just type your question below!`;
 
+// When the desktop app is embedded in the AgriSense shell (mobile app's
+// desktop view), the host draws its own agent FAB at the same corner —
+// hide this one so there aren't two overlapping buttons.
+const EMBEDDED =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('embed') === '1';
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([{ role: 'assistant', text: WELCOME }]);
@@ -53,6 +60,8 @@ export default function ChatWidget() {
   const keyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
+
+  if (EMBEDDED) return null;
 
   return (
     <>
