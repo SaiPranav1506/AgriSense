@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronDown, Leaf } from 'lucide-react';
+import HashLink from '../components/HashLink';
 import SectionWrapper from '../components/SectionWrapper';
 import StatCard from '../components/StatCard';
 import FeatureCard from '../components/FeatureCard';
@@ -144,18 +145,18 @@ export default function Home() {
           </motion.p>
 
           <motion.div variants={UP} className="flex flex-wrap justify-center gap-4 mb-14">
-            <Link
+            <HashLink
               to="/#features"
               className="leaf-btn px-7 py-3.5 font-heading text-base"
             >
               Explore Features ↓
-            </Link>
-            <Link
+            </HashLink>
+            <HashLink
               to="/#get-started"
               className="ghost-btn px-7 py-3.5 font-heading text-base"
             >
               Try Live Demo →
-            </Link>
+            </HashLink>
           </motion.div>
 
           <motion.div variants={UP} className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-14">
@@ -357,39 +358,6 @@ export default function Home() {
             />
           </div>
 
-          {/* Accuracy bars */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mt-14 glass-card p-7 space-y-5"
-          >
-            {[
-              { name: 'XGBoost — Crop Recommendation', pct: 95 },
-              { name: 'CNN-LSTM — Yield Forecast', pct: 93 },
-              { name: 'MobileNetV2 — Disease Detection', pct: 96 },
-            ].map((row, i) => (
-              <div key={i}>
-                <div className="flex justify-between font-mono text-xs text-mid mb-1.5">
-                  <span>{row.name}</span>
-                  <span className="text-gradient font-bold">{row.pct}%</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    whileInView={{ width: `${row.pct}%` }}
-                    viewport={{ once: true }}
-                    transition={{
-                      duration: 1.4,
-                      delay: i * 0.15,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    className="h-full rounded-full bg-gradient-to-r from-chrome to-silver-mid"
-                  />
-                </div>
-              </div>
-            ))}
-          </motion.div>
         </div>
       </SectionWrapper>
 

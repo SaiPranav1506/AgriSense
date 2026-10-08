@@ -53,6 +53,57 @@ const CROP_TIPS = {
   sweetpotato: 'Vine cuttings at 60x15 cm. Red soils preferred. Harvest at 90-110 days. Yields 15-20 t/ha.',
 };
 
+// Confidence band label: honest framing of how decisive the model is
+function ConfidenceBand({ value }) {
+  const band =
+    value >= 70 ? { label: 'Clear match', cls: 'text-chrome border-chrome/40 bg-chrome/10' }
+    : value >= 40 ? { label: 'Good match', cls: 'text-silver-mid border-white/15 bg-white/5' }
+    : { label: 'Several options fit', cls: 'text-amber border-amber/40 bg-amber/10' };
+  return (
+    <span className={`font-mono text-[10px] tracking-wider uppercase px-2.5 py-1 rounded-full border ${band.cls}`}>
+      {band.label}
+    </span>
+  );
+}
+
+// One ranked crop card — the top-3 ARE the recommendation
+function RecommendationCard({ rank, crop, confidence, tip }) {
+  const isTop = rank === 0;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: rank * 0.12, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className={`glass-card p-5 ${isTop ? 'border-chrome/40' : 'border-white/8'}`}
+    >
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className={`font-mono text-[11px] px-2 py-0.5 rounded-full border ${isTop ? 'text-chrome border-chrome/40 bg-chrome/10' : 'text-muted border-white/10'}`}>
+            #{rank + 1}
+          </span>
+          <p className={`font-heading font-bold capitalize ${isTop ? 'text-2xl text-gradient' : 'text-lg text-white-soft'}`}>
+            {crop}
+          </p>
+        </div>
+        <span className={`font-mono text-sm font-bold ${isTop ? 'text-chrome' : 'text-mid'}`}>
+          {confidence.toFixed(1)}%
+        </span>
+      </div>
+
+      <div className="h-2 rounded-full bg-white/5 overflow-hidden mb-3">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${confidence}%` }}
+          transition={{ duration: 0.9, delay: 0.15 + rank * 0.12, ease: [0.22, 1, 0.36, 1] }}
+          className={`h-full rounded-full ${isTop ? 'bg-gradient-to-r from-chrome to-silver-mid' : 'bg-chrome/40'}`}
+        />
+      </div>
+
+      {tip && <p className="text-mid font-body text-xs leading-relaxed">{tip}</p>}
+    </motion.div>
+  );
+}
+
 export default function CropPage() {
   const [fields, setFields] = useState({
     N: 80, P: 42, K: 43, temperature: 27, humidity: 68, ph: 6.5, rainfall: 120,
@@ -89,9 +140,6 @@ export default function CropPage() {
       setLoading(false);
     }
   };
-
-  const cropKey = result?.recommended_crop?.toLowerCase() || '';
-  const tip = CROP_TIPS[cropKey] || 'Follow local agronomy guidelines for best practice.';
 
   return (
     <motion.div
@@ -197,54 +245,24 @@ export default function CropPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="glass-card p-8"
+                className="space-y-4"
               >
-                <p className="font-mono text-[11px] text-chrome tracking-widest uppercase mb-4">
-                  Recommended Crop
-                </p>
-                <p className="font-heading text-4xl font-bold text-gradient mb-2 capitalize">
-                  {result.recommended_crop}
-                </p>
-                <p className="font-mono text-sm text-mid mb-5">
-                  Confidence:{' '}
-                  <span className="text-gradient font-bold">{result.confidence.toFixed(2)}%</span>
-                </p>
-
-                <div className="h-3 rounded-full bg-white/5 mb-6 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${result.confidence}%` }}
-                    transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-                    className="h-full rounded-full bg-gradient-to-r from-chrome to-silver-mid"
-                  />
+                <div className="flex items-baseline justify-between">
+                  <p className="font-mono text-[11px] text-chrome tracking-widest uppercase">
+                    Top 3 Crop Matches
+                  </p>
+                  <ConfidenceBand value={result.confidence} />
                 </div>
 
-                <p className="text-mid font-body text-sm mb-5">{tip}</p>
+                {result.top3?.map((t, i) => (
+                  <RecommendationCard key={t.crop} rank={i} crop={t.crop} confidence={t.confidence} tip={CROP_TIPS[t.crop.toLowerCase()]} />
+                ))}
 
-                <p className="font-mono text-[11px] text-mid tracking-wider uppercase mb-3">
-                  Top 3 Alternatives
+                <p className="text-muted font-body text-xs leading-relaxed pt-1">
+                  The correct crop falls within these three for ~97.7% of conditions.
+                  A high top-1 confidence means a clear winner; a spread across the three means
+                  several crops genuinely suit these conditions.
                 </p>
-                <div className="space-y-3">
-                  {result.top3?.map((t, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="font-mono text-xs text-muted w-5">#{i + 1}</span>
-                      <div className="flex-1">
-                        <div className="flex justify-between text-xs font-mono mb-0.5">
-                          <span className="text-white-soft capitalize">{t.crop}</span>
-                          <span className="text-chrome">{t.confidence.toFixed(2)}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${t.confidence}%` }}
-                            transition={{ duration: 0.9, delay: i * 0.12 }}
-                            className="h-full rounded-full bg-chrome/50"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </motion.div>
             )}
 

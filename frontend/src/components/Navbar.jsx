@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Leaf } from 'lucide-react';
+import HashLink from './HashLink';
 
 const LINKS = [
   { label: 'Home', to: '/' },
@@ -47,10 +48,10 @@ export default function Navbar() {
 
         <div className="hidden md:flex items-center gap-8">
           {LINKS.map(l => (
-            <Link key={l.to} to={l.to}
+            <HashLink key={l.to} to={l.to}
               className="text-sm font-medium text-mid hover:text-silver-mid transition-colors duration-200">
               {l.label}
-            </Link>
+            </HashLink>
           ))}
           <span className="flex items-center gap-2 text-silver-mid font-mono text-[11px] tracking-wider">
             <span className="relative flex h-2 w-2">
@@ -76,10 +77,10 @@ export default function Navbar() {
             className="md:hidden fixed inset-0 top-[68px] bg-surface/95 backdrop-blur-2xl z-40 flex flex-col items-center gap-8 pt-16"
           >
             {LINKS.map(l => (
-              <Link key={l.to} to={l.to}
+              <HashLink key={l.to} to={l.to}
                 className="font-heading text-2xl text-white-soft hover:text-silver-mid transition-colors">
                 {l.label}
-              </Link>
+              </HashLink>
             ))}
             <span className="text-silver-mid font-mono text-sm tracking-wider">● CLIMATE FEED ACTIVE</span>
           </motion.div>

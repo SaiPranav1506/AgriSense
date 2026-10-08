@@ -36,10 +36,17 @@ def _m(path):
 log.info("Loading models...")
 crop_model    = pickle.load(open(_m('models/xgb_crop_v11.pkl'),          'rb'))
 yield_model   = load_model(_m('models/cnn_lstm_yield_v2.h5'), compile=False)
-disease_model = load_model(_m('models/mobilenet_disease_v5.h5'), compile=False)
+disease_model = load_model(_m('models/efficientnet_disease_v6.h5'), compile=False)
 label_encoder = pickle.load(open(_m('models/label_encoder.pkl'),         'rb'))
 crop_scaler   = pickle.load(open(_m('models/crop_scaler_v11.pkl'),       'rb'))
 crop_featnames = pickle.load(open(_m('models/crop_featnames_v11.pkl'),   'rb'))
+# Family-level crop model (optional coarser mode, higher top-1)
+try:
+    crop_family_model  = pickle.load(open(_m('models/xgb_crop_family.pkl'),  'rb'))
+    crop_family_scaler = pickle.load(open(_m('models/crop_family_scaler.pkl'), 'rb'))
+    crop_family_meta   = pickle.load(open(_m('models/crop_family_meta.pkl'), 'rb'))
+except Exception:
+    crop_family_model = crop_family_scaler = crop_family_meta = None
 class_names   = pickle.load(open(_m('models/disease_class_names.pkl'),   'rb'))
 area_encoder  = pickle.load(open(_m('models/area_encoder.pkl'),          'rb'))
 item_encoder  = pickle.load(open(_m('models/item_encoder.pkl'),          'rb'))
@@ -114,6 +121,49 @@ def predict_crop():
         return _err(str(e))
 
 
+@app.route('/predict-crop-family', methods=['POST'])
+def predict_crop_family():
+    """Coarser family-level recommendation (11 agro-climatic families).
+    Higher top-1 than individual crops (80% vs 77%) — useful as a simple mode."""
+    if crop_family_model is None:
+        return _err('Crop-family model not available', 503)
+    try:
+        d = request.get_json()
+        if not d:
+            return _err('Request body must be JSON')
+        N    = float(d.get('N', 0)); P = float(d.get('P', 0)); K = float(d.get('K', 0))
+        temp = float(d.get('temperature', 25)); hum = float(d.get('humidity', 50))
+        ph   = float(d.get('ph', 7.0)); rain = float(d.get('rainfall', 100))
+        if not (0 <= N <= 200 and 0 <= P <= 200 and 0 <= K <= 200):
+            return _err('N, P, K must be in range 0–200')
+        if not (3.5 <= ph <= 9.5):
+            return _err('pH must be in range 3.5–9.5')
+        if 'lat' in d and 'lon' in d:
+            climate = fetch_climate(d['lat'], d['lon'])
+            if climate is not None:
+                temp = float(np.mean(climate[:, 0]))
+                hum  = float(np.mean(climate[:, 1]))
+
+        full = build_feature_vector_honest(N, P, K, temp, hum, ph, rain)[0]
+        feat_map = dict(zip(LEGIT_FEATURES, full))
+        feats = crop_family_meta['features']
+        X_raw = np.array([[feat_map[f] for f in feats]], dtype=np.float32)
+        X_scaled = crop_family_scaler.transform(X_raw)
+        proba = crop_family_model.predict_proba(X_scaled)[0]
+        fam_names = crop_family_meta['family_names']
+        top3_idx = np.argsort(proba)[::-1][:3]
+        return jsonify({
+            'recommended_family': fam_names[top3_idx[0]],
+            'confidence': round(float(proba[top3_idx[0]] * 100), 2),
+            'top3': [{'family': fam_names[i],
+                      'confidence': round(float(proba[i] * 100), 2)}
+                     for i in top3_idx]
+        })
+    except Exception as e:
+        log.exception('predict-crop-family failed')
+        return _err(str(e))
+
+
 @app.route('/predict-yield', methods=['POST'])
 def predict_yield():
     try:
@@ -170,15 +220,17 @@ def predict_disease():
             return _err('No image file provided')
         file = request.files['image']
         img  = Image.open(io.BytesIO(file.read())).convert('RGB')
-        img  = img.resize((128, 128))
-        arr  = np.array(img, dtype=np.float32) / 255.0
+        img  = img.resize((224, 224))
+        # v6 (EfficientNetV2 include_preprocessing=True) expects [0,255] — do NOT /255
+        arr  = np.array(img, dtype=np.float32)
         arr  = np.expand_dims(arr, axis=0)
         t = tf.convert_to_tensor(arr)
         p0 = disease_model.predict(t, verbose=0)
         p1 = disease_model.predict(tf.image.flip_left_right(t), verbose=0)
         p2 = disease_model.predict(tf.image.rot90(t, k=1), verbose=0)
         p3 = disease_model.predict(tf.image.rot90(t, k=3), verbose=0)
-        p4 = disease_model.predict(tf.image.random_brightness(t, 0.15), verbose=0)
+        bright = tf.clip_by_value(t + tf.random.uniform([], -25.0, 25.0), 0.0, 255.0)
+        p4 = disease_model.predict(bright, verbose=0)
         proba = ((p0 + p1 + p2 + p3 + p4) / 5.0)[0]
         top3_idx = np.argsort(proba)[::-1][:3]
         return jsonify({

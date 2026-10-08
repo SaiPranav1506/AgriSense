@@ -10,6 +10,7 @@ import CropPage from './pages/CropPage';
 import YieldPage from './pages/YieldPage';
 import DiseasePage from './pages/DiseasePage';
 import NotFound from './pages/NotFound';
+import { useHashScroll } from './hooks/useHashScroll';
 
 const pageTransition = {
   initial: { opacity: 0, y: 18 },
@@ -36,6 +37,7 @@ function AnimatedBg() {
 
 function AnimatedRoutes() {
   const location = useLocation();
+  useHashScroll();
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
